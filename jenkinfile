@@ -1,0 +1,48 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout project') {
+            steps {
+                echo 'Downloading git directory...'
+                git 'https://github.com/futehc/tustpy.git'
+            }
+        }
+
+        stage('OWASP Dependency-Check') {
+            steps {
+                script {
+                    echo 'Running OWASP Dependency-Check analysis...'
+                    def dependencyCheckExecutable = "D:\\tools\\dependency-check\\bin\\dependency-check.bat"
+                    def dependencyCheckOutputDir = "${WORKSPACE}\\dependency-check-report"
+                    def dependencyCheckDataDir = "${WORKSPACE}\\dependency-check-data"
+
+                    // Run OWASP Dependency-Check
+                    bat "\"${dependencyCheckExecutable}\" --project YourProjectName --scan ${WORKSPACE} --format JSON --out ${dependencyCheckOutputDir} --data ${dependencyCheckDataDir}"
+
+                    // Customize the curl command to push Dependency-Check results to DefectDojo
+                    sh """
+                        curl -X 'POST' \
+                          'https://demo.defectdojo.org/api/v2/importscan/' \
+                          -H 'accept: application/json' \
+                          -H 'Content-Type: application/json' \
+                          -H 'X-CSRFToken: D2qEm8WkXtRObyc4n2PJs9lKAauWaPzb \
+                          -H 'Authorization: Token 548afd6fab3bea9794a41b31da0e9404f733e222' \
+                          -F 'scan_date=2023-11-20' \
+                          -F 'minimum_severity=Info' \
+                          -F 'active=true' \
+                          -F 'verified=true' \
+                          -F 'scan_type=OWASP Dependency-Check' \
+                          -F 'file=@${dependencyCheckOutputDir}/dependency-check-report.json;type=application/json' \
+                          -F 'product_name=CICDt' \
+                          -F 'engagement_name=dp check' \
+                          -F 'close_old_findings=false' \
+                          -F 'close_old_findings_product_scope=false' \
+                          -F 'push_to_jira=false' \
+                          -F 'create_finding_groups_for_all_findings=true'
+                    """
+                }
+            }
+        }
+    }
+}
